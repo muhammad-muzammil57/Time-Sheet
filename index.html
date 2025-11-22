@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>TimeSheet Pro</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --bg-color: #0f2027;
+      --text-color: #fff;
+      --neon: #0ff;
+      --box-bg: rgba(255, 255, 255, 0.05);
+      --imp-color: red;
+    }
+
+    body.light {
+      --bg-color: #f5f5f5;
+      --text-color: #111;
+      --neon: #00f;
+      --box-bg: rgba(0, 0, 0, 0.05);
+      --imp-color: darkred;
+    }
+
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      background: var(--bg-color);
+      color: var(--text-color);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 30px 10px;
+      transition: 0.4s ease;
+    }
+
+    h1 {
+      font-size: 2.5rem;
+      text-shadow: 0 0 10px var(--neon);
+    }
+
+    .btn {
+      background: transparent;
+      border: 2px solid var(--neon);
+      color: var(--neon);
+      padding: 10px 16px;
+      margin: 5px;
+      font-size: 1rem;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: 0.3s;
+      box-shadow: 0 0 10px var(--neon);
+    }
+
+    .btn:hover {
+      background: var(--neon);
+      color: var(--bg-color);
+      box-shadow: 0 0 20px var(--neon);
+    }
+
+    .controls, .filters {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+      margin: 10px 0;
+    }
+
+    .task-table {
+      width: 100%;
+      max-width: 900px;
+      border-collapse: collapse;
+      margin-top: 15px;
+      box-shadow: 0 0 20px var(--neon);
+    }
+
+    .task-table th, .task-table td {
+      border: 1px solid var(--neon);
+      padding: 10px;
+      text-align: center;
+      background: var(--box-bg);
+    }
+
+    .form-popup {
+      display: none;
+      flex-direction: column;
+      position: fixed;
+      top: 20%;
+      background: var(--bg-color);
+      border: 2px solid var(--neon);
+      border-radius: 12px;
+      padding: 20px;
+      z-index: 999;
+      width: 300px;
+      box-shadow: 0 0 20px var(--neon);
+    }
+
+    .form-popup input, .form-popup select {
+      margin-bottom: 10px;
+      padding: 8px;
+      width: 100%;
+      border: none;
+      border-radius: 5px;
+      background: var(--box-bg);
+      color: var(--text-color);
+    }
+
+    canvas {
+      max-width: 300px;
+      margin: 20px auto;
+    }
+
+    #themeToggle {
+      appearance: none;
+      width: 50px;
+      height: 25px;
+      border-radius: 20px;
+      background: var(--box-bg);
+      border: 2px solid var(--neon);
+      position: relative;
+      cursor: pointer;
+    }
+
+    #themeToggle::before {
+      content: '';
+      width: 20px;
+      height: 20px;
+      background: var(--neon);
+      border-radius: 50%;
+      position: absolute;
+      top: 1.5px;
+      left: 2px;
+      transition: 0.4s;
+    }
+
+    #themeToggle:checked::before {
+      left: 26px;
+    }
+
+    .delete-btn {
+      background: transparent;
+      border: 1px solid red;
+      color: red;
+      padding: 4px 8px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    .delete-btn:hover {
+      background: red;
+      color: white;
+    }
+
+    .edit-mode input, .edit-mode select {
+      background-color: #222;
+      color: var(--neon);
+      border: 1px solid var(--neon);
+    }
+
+    .badge {
+      padding: 3px 6px;
+      border-radius: 5px;
+      background-color: var(--imp-color);
+      color: white;
+      font-weight: bold;
+      font-size: 0.9rem;
+    }
+
+    .filters input {
+      padding: 8px;
+      border-radius: 8px;
+      border: 1px solid var(--neon);
+      background: var(--box-bg);
+      color: var(--text-color);
+    }
+  </style>
+</head>
+<body>
+
+  <h1>📝 My TimeSheet</h1>
+
+  <div class="controls">
+    <button class="btn" onclick="toggleEdit()">Edit Tasks</button>
+    <button class="btn" onclick="openForm()">Add Today Task</button>
+    <input type="date" id="filterDate">
+    <button class="btn" onclick="filterByDate()">Filter</button>
+    <button class="btn" onclick="loadTasks()">Show All</button>
+    <label><input type="checkbox" id="themeToggle" onchange="toggleTheme()"></label>
+  </div>
+
+  <div class="filters">
+    <input type="text" id="searchTask" oninput="loadTasks()" placeholder="🔍 Search task name">
+  </div>
+
+  <table class="task-table" id="taskTable">
+    <thead>
+      <tr>
+        <th>Date</th><th>Start</th><th>End</th><th>Task</th><th>Done?</th><th>Priority</th><th>Action</th>
+      </tr>
+    </thead>
+    <tbody id="taskBody"></tbody>
+  </table>
+
+  <canvas id="taskChart"></canvas>
+
+  <div class="form-popup" id="taskForm">
+    <input type="date" id="date">
+    <input type="time" id="start">
+    <input type="time" id="end">
+    <input type="text" id="task" placeholder="Task Name">
+    <select id="done">
+      <option value="Yes">Done</option>
+      <option value="No">Not Done</option>
+    </select>
+    <select id="priority">
+      <option value="Normal">Not Important</option>
+      <option value="Important">Important</option>
+    </select>
+    <button class="btn" onclick="addTask()">Add Task</button>
+    <button class="btn" onclick="closeForm()">Close</button>
+  </div>
+
+  <script>
+    let editMode = false;
+
+    function openForm() {
+      document.getElementById('taskForm').style.display = 'flex';
+    }
+
+    function closeForm() {
+      document.getElementById('taskForm').style.display = 'none';
+    }
+
+    function addTask() {
+      const date = document.getElementById('date').value;
+      const start = document.getElementById('start').value;
+      const end = document.getElementById('end').value;
+      const task = document.getElementById('task').value;
+      const done = document.getElementById('done').value;
+      const priority = document.getElementById('priority').value;
+
+      if (!date || !start || !end || !task) {
+        alert("Please fill all fields.");
+        return;
+      }
+
+      const taskData = { date, start, end, task, done, priority };
+      const tasks = JSON.parse(localStorage.getItem('myTasks') || '[]');
+      tasks.push(taskData);
+      localStorage.setItem('myTasks', JSON.stringify(tasks));
+      closeForm();
+      loadTasks();
+    }
+
+    function deleteTask(index) {
+      const tasks = JSON.parse(localStorage.getItem('myTasks') || '[]');
+      tasks.splice(index, 1);
+      localStorage.setItem('myTasks', JSON.stringify(tasks));
+      loadTasks();
+    }
+
+    function toggleEdit() {
+      editMode = !editMode;
+      loadTasks();
+    }
+
+    function updateTask(index, field, value) {
+      const tasks = JSON.parse(localStorage.getItem('myTasks') || '[]');
+      tasks[index][field] = value;
+      localStorage.setItem('myTasks', JSON.stringify(tasks));
+    }
+
+    function loadTasks(filterDate = null) {
+      const tasks = JSON.parse(localStorage.getItem('myTasks') || '[]');
+      const tbody = document.getElementById('taskBody');
+      const search = document.getElementById('searchTask').value.toLowerCase();
+      tbody.innerHTML = "";
+
+      let doneCount = 0;
+      tasks.forEach((task, i) => {
+        if (filterDate && task.date !== filterDate) return;
+        if (search && !task.task.toLowerCase().includes(search)) return;
+        if (task.done === "Yes") doneCount++;
+
+        const tr = document.createElement('tr');
+        if (editMode) tr.classList.add('edit-mode');
+
+        tr.innerHTML = editMode ? `
+          <td><input type="date" value="${task.date}" onchange="updateTask(${i}, 'date', this.value)"></td>
+          <td><input type="time" value="${task.start}" onchange="updateTask(${i}, 'start', this.value)"></td>
+          <td><input type="time" value="${task.end}" onchange="updateTask(${i}, 'end', this.value)"></td>
+          <td><input type="text" value="${task.task}" onchange="updateTask(${i}, 'task', this.value)"></td>
+          <td>
+            <select onchange="updateTask(${i}, 'done', this.value)">
+              <option ${task.done === 'Yes' ? 'selected' : ''}>Yes</option>
+              <option ${task.done === 'No' ? 'selected' : ''}>No</option>
+            </select>
+          </td>
+          <td>
+            <select onchange="updateTask(${i}, 'priority', this.value)">
+              <option ${task.priority === 'Normal' ? 'selected' : ''}>Not Important</option>
+              <option ${task.priority === 'Important' ? 'selected' : ''}>Important</option>
+            </select>
+          </td>
+          <td><button class="delete-btn" onclick="deleteTask(${i})">Delete</button></td>
+        ` : `
+          <td>${task.date}</td>
+          <td>${task.start}</td>
+          <td>${task.end}</td>
+          <td>${task.task}</td>
+          <td>${task.done}</td>
+          <td>${task.priority === 'Important' ? '<span class="badge">IMP</span>' : ''}</td>
+          <td><button class="delete-btn" onclick="deleteTask(${i})">Delete</button></td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      updateGraph(tasks.length, doneCount);
+    }
+
+    function filterByDate() {
+      const date = document.getElementById('filterDate').value;
+      if (!date) {
+        alert("Select a date to filter.");
+        return;
+      }
+      loadTasks(date);
+    }
+
+    function toggleTheme() {
+      document.body.classList.toggle('light');
+    }
+
+    let chart;
+    function updateGraph(total, done) {
+      const ctx = document.getElementById('taskChart').getContext('2d');
+      if (chart) chart.destroy();
+      chart = new Chart(ctx, {
+        type: 'pie',
+        data: {
+          labels: ['Done', 'Remaining'],
+          datasets: [{
+            data: [done, total - done],
+            backgroundColor: ['#0f0', '#f00'],
+          }]
+        },
+        options: {
+          plugins: {
+            legend: { labels: { color: getComputedStyle(document.body).getPropertyValue('--text-color') } }
+          }
+        }
+      });
+    }
+
+    loadTasks();
+  </script>
+
+</body>
+</html>
